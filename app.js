@@ -334,7 +334,7 @@ function renderSchedule() {
       const x = sec(`Group round ${r + 1}`);
       list(x, games.map((t, k) => `${tableLabel(k, games.length)}: ${t}`));
       const sitting = [];
-      per.forEach((sch, gi) => { if (!sch[r]) return; const on = new Set(sch[r].flat()); groups[gi].forEach((p, i) => { if (!on.has(i)) sitting.push(`${p} (group ${letters[gi]})`); }); });
+      per.forEach((sch, gi) => { if (!sch[r]) return; const on = new Set(sch[r].flat()); groups[gi].forEach((p, i) => { if (!on.has(i)) sitting.push(`${p} in group ${letters[gi]}`); }); });
       if (sitting.length) x.append(el('p', { class: 'note', text: `Sits out: ${sitting.join(', ')}` }));
     }
     const qual = [letters.slice(0, G).split('').map(c => `winner of group ${c}`), letters.slice(0, G).split('').map(c => `runner-up of group ${c}`)];
