@@ -296,25 +296,40 @@ export function doubleElim(n, game, rand, { seeded = true, field } = {}) {
   const play = (a, b) => {
     games[a]++; games[b]++;
     const t = Math.max(free[a], free[b]) + 1; free[a] = free[b] = t; rounds = Math.max(rounds, t);
-    return decisive(game, a, b);
+    const w = decisive(game, a, b);
+    return { w, l: w === a ? b : a };
   };
+  const { wbChamp, lbChamp } = deStructure(seeds, play);
+  if (lbChamp === null) return { winner: wbChamp, games, rounds };
+  let w = play(wbChamp, lbChamp).w;
+  if (w === lbChamp) w = play(wbChamp, lbChamp).w;
+  return { winner: w, games, rounds };
+}
+
+// The bracket itself, shared by the simulation and the printed schedule. `seeds` are tokens in seed order;
+// play(a, b, stage) returns { w, l } tokens; stage is { bracket: 'W' | 'L', round }. Returns the two finalists.
+export function deStructure(seeds, play) {
+  const n = seeds.length;
   let m = 1; while (m < n) m *= 2;
-  let slots = bracketOrder(m).map(k => (k <= n ? seeds[k - 1] : -1));
+  let slots = bracketOrder(m).map(k => (k <= n ? seeds[k - 1] : null));
   const dropped = [];
+  let wr = 0, lr = 0;
   while (slots.length > 1) {
     const next = [], lost = [];
+    wr++;
     for (let k = 0; k < slots.length; k += 2) {
       const a = slots[k], b = slots[k + 1];
-      if (a < 0) next.push(b); else if (b < 0) next.push(a);
-      else { const w = play(a, b); next.push(w); lost.push(w === a ? b : a); }
+      if (a === null) next.push(b); else if (b === null) next.push(a);
+      else { const r = play(a, b, { bracket: 'W', round: wr }); next.push(r.w); lost.push(r.l); }
     }
     if (lost.length) dropped.push(lost);
     slots = next;
   }
   const wbChamp = slots[0];
   const reduce = arr => {
+    lr++;
     const next = [];
-    for (let k = 0; k + 1 < arr.length; k += 2) next.push(play(arr[k], arr[k + 1]));
+    for (let k = 0; k + 1 < arr.length; k += 2) next.push(play(arr[k], arr[k + 1], { bracket: 'L', round: lr }).w);
     if (arr.length % 2) next.unshift(arr[arr.length - 1]); // the bye goes to the last listed player
     return next;
   };
@@ -325,17 +340,27 @@ export function doubleElim(n, game, rand, { seeded = true, field } = {}) {
       // minor round: survivors meet newcomers one to one (newcomers in reverse order to avoid quick rematches)
       const nw = lost.slice().reverse(), next = [];
       const k = Math.min(pool.length, nw.length);
-      for (let i = 0; i < k; i++) next.push(play(pool[i], nw[i]));
+      if (k) lr++;
+      for (let i = 0; i < k; i++) next.push(play(pool[i], nw[i], { bracket: 'L', round: lr }).w);
       pool = [...next, ...pool.slice(k), ...nw.slice(k)];
     }
     const target = r + 1 < dropped.length ? Math.max(1, dropped[r + 1].length) : 1;
     while (pool.length > target) pool = reduce(pool); // major rounds
   });
-  if (!pool.length) return { winner: wbChamp, games, rounds };
-  const lbChamp = pool[0];
-  let w = play(wbChamp, lbChamp);
-  if (w === lbChamp) w = play(wbChamp, lbChamp);
-  return { winner: w, games, rounds };
+  return { wbChamp, lbChamp: pool.length ? pool[0] : null };
+}
+
+// Printable double-elimination bracket for n players listed in seed order: matches with labels.
+export function deBracket(names) {
+  const matches = [];
+  const play = (a, b, stage) => {
+    const id = matches.length + 1;
+    matches.push({ id, a, b, ...stage });
+    return { w: `winner of match ${id}`, l: `loser of match ${id}` };
+  };
+  const { wbChamp, lbChamp } = deStructure(names, play);
+  if (lbChamp !== null) matches.push({ id: matches.length + 1, a: wbChamp, b: lbChamp, bracket: 'F', round: 1 });
+  return matches;
 }
 
 // ---------- Monte Carlo summary ----------

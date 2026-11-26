@@ -180,3 +180,14 @@ test('roundShape: games match a simulated tournament', () => {
     }
   }
 });
+
+test('printable double-elimination bracket: 2n-2 matches before the reset, every player listed', () => {
+  for (const n of [3, 4, 5, 8, 11, 16, 23, 32]) {
+    const names = Array.from({ length: n }, (_, i) => `P${i + 1}`);
+    const ms = S.deBracket(names);
+    assert.equal(ms.length, 2 * n - 2, `n=${n}`); // 2n-2 games incl. the grand final; the reset game is extra
+    const shown = new Set(ms.flatMap(m => [m.a, m.b]).filter(x => /^P\d+$/.test(x)));
+    assert.equal(shown.size, n);
+    for (const m of ms) for (const x of [m.a, m.b]) { const r = /match (\d+)/.exec(x); if (r) assert.ok(+r[1] < m.id, `forward reference in match ${m.id}`); }
+  }
+});

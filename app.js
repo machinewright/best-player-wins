@@ -1,4 +1,4 @@
-import { roundShape, slotsNeeded, circleSchedule, bracketOrder } from './src/sim.js';
+import { roundShape, slotsNeeded, circleSchedule, bracketOrder, deBracket } from './src/sim.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -283,10 +283,20 @@ function renderSchedule() {
     list(x, items);
     if (st.n % 2) x.append(el('p', { class: 'note', text: `Bye (counts as a win): ${order[st.n - 1]}` }));
     out.append(el('p', { class: 'note', text: `List your players strongest first, or in random order if you don't know. Later rounds depend on the results, so they can't be printed in advance. After each round: sort players by points (equal points: the order of your list). Pair the top half of each score group against its bottom half, first with first; if two players have met before, swap with the next player. An odd player out moves down to the next score group. With an odd number of players, the lowest-ranked player who hasn't had a bye gets one. Play ${f ? f.rounds : Math.ceil(Math.log2(st.n))} rounds; most points wins, ties broken by the sum of your opponents' points.` }));
+  } else if (kind === 'de') {
+    out.append(el('p', { class: 'note', text: 'Players are seeded in the order of your list (strongest first); the number after a name is the seed. Lose twice and you’re out: the loser of each winners’-bracket match moves to the losers’ bracket. Any match can start as soon as both its players are known, so the two brackets run side by side.' }));
+    const ms = deBracket(nm.map((x, i) => `${x} (${i + 1})`));
+    const groups = new Map();
+    for (const mt of ms) {
+      const h = mt.bracket === 'W' ? `Winners’ bracket, round ${mt.round}` : mt.bracket === 'L' ? `Losers’ bracket, round ${mt.round}` : 'Grand final';
+      (groups.get(h) || groups.set(h, []).get(h)).push(`Match ${mt.id}: ${mt.a} – ${mt.b}`);
+    }
+    for (const [h, items] of groups) {
+      const x = sec(h); list(x, items);
+      if (h === 'Grand final') x.append(el('p', { class: 'note', text: 'If the player from the losers’ bracket wins, play one more game: now both have lost once.' }));
+    }
   } else {
-    out.append(el('p', { class: 'note', text: kind === 'de'
-      ? 'This page doesn’t print double-elimination brackets: the losers’ bracket depends on who loses where. A bracket app or a printed template for your number of players works better.'
-      : 'This page doesn’t print group schedules yet. Run each group as a small round robin (choose "Round robin" with the group’s size), then a knockout for the top two of each group.' }));
+    out.append(el('p', { class: 'note', text: 'This page doesn’t print group schedules yet. Run each group as a small round robin (choose "Round robin" with the group’s size), then a knockout for the top two of each group.' }));
   }
 }
 
