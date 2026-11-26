@@ -26,14 +26,35 @@ function writeHash(st) {
   for (const k of Object.keys(inputs)) if (inputs[k].value !== '') h.set(k, inputs[k].value);
   history.replaceState(null, '', '#' + h.toString());
 }
+// Pasted ratings: one player per line, an optional name and an Elo-style rating. Returns strongest first, or null.
+function parseRatings() {
+  const rows = [];
+  for (const line of $('#ratings').value.split('\n')) {
+    const m = /^\s*(.*?)[\s,;:\t]*(\d{1,4}(?:\.\d+)?)\s*$/.exec(line);
+    if (m) rows.push({ name: m[1].trim(), r: +m[2] });
+  }
+  if (rows.length < 3) return { rows: null, count: rows.length };
+  return { rows: rows.slice(0, 64).sort((a, b) => b.r - a.r), count: rows.length };
+}
 function state() {
-  const n = Math.max(3, Math.min(64, Math.round(+inputs.n.value || 16)));
-  const p = (+inputs.p.value) / 100;
+  const pr = parseRatings();
+  const ratings = pr.rows;
+  $('#ratings-status').textContent = !$('#ratings').value.trim() ? ''
+    : ratings ? `Using ${ratings.length} ratings, from ${ratings[0].r} to ${ratings[ratings.length - 1].r}${pr.count > 64 ? ' (only the first 64 lines)' : ''}. The player count and the slider above now follow your list; clear this box to go back.`
+    : 'Paste at least three ratings, one per line.';
+  inputs.n.disabled = inputs.p.disabled = !!ratings;
+  if (ratings) {
+    inputs.n.value = ratings.length;
+    const mid = (ratings.length - 1) / 2, rm = (ratings[Math.floor(mid)].r + ratings[Math.ceil(mid)].r) / 2;
+    inputs.p.value = Math.round(100 / (1 + 10 ** (-(ratings[0].r - rm) / 400)));
+  }
+  const n = ratings ? ratings.length : Math.max(3, Math.min(64, Math.round(+inputs.n.value || 16)));
+  const p = ratings ? 1 / (1 + 10 ** (-(ratings[0].r - (ratings[Math.floor((n - 1) / 2)].r + ratings[Math.ceil((n - 1) / 2)].r) / 2) / 400)) : (+inputs.p.value) / 100;
   const tablesRaw = Math.round(+inputs.tables.value);
   const tables = tablesRaw >= 1 ? tablesRaw : Math.floor(n / 2);
   const mins = Math.max(1, +inputs.mins.value || 20);
   const hours = inputs.hours.value === '' ? null : Math.max(0, +inputs.hours.value);
-  return { n, p, draw: +inputs.draw.value, seeding: inputs.seeding.value, tables, mins, hours };
+  return { n, p, draw: +inputs.draw.value, seeding: inputs.seeding.value, tables, mins, hours, ratings };
 }
 
 function feel(p) {
@@ -110,7 +131,7 @@ function render(st) {
   $('#takeaway').textContent = 'Playing each format a few thousand times…';
   jobId++;
   const { lo: swissMin, hi: swissMax } = swissRange(st.n);
-  worker.postMessage({ id: jobId, n: st.n, p: st.p, draw: st.draw, seeding: st.seeding, runs: 4000,
+  worker.postMessage({ id: jobId, n: st.n, p: st.p, draw: st.draw, seeding: st.seeding, runs: 4000, ratings: st.ratings ? st.ratings.map(x => x.r) : null,
     formats: fmts.map(({ key, fn, opts }) => ({ key, fn, opts })), swissMin, swissMax });
   swissData = []; drawSwiss();
   renderSchedule();
@@ -226,7 +247,8 @@ function drawSwiss() {
 
 // ---------- schedule ----------
 function names(n) {
-  const given = $('#names').value.split('\n').map(s => s.trim()).filter(Boolean);
+  let given = $('#names').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!given.length && lastState && lastState.ratings) given = lastState.ratings.map((x, i) => x.name || `Player ${i + 1}`);
   return Array.from({ length: n }, (_, i) => given[i] || `Player ${i + 1}`);
 }
 let schedTouched = false;
@@ -259,7 +281,7 @@ function renderSchedule() {
       if (sitting.length) x.append(el('p', { class: 'note', text: `Sits out: ${sitting.join(', ')}` }));
     });
   } else if (kind === 'ko') {
-    out.append(el('p', { class: 'note', text: 'Players are seeded in the order of your list (strongest first); the number after a name is the seed. Top seeds get the byes.' }));
+    out.append(el('p', { class: 'note', text: 'Players are seeded strongest first (by your ratings, or else in the order of your list); the number after a name is the seed. Top seeds get the byes.' }));
     let m = 1; while (m < st.n) m *= 2;
     let slots = bracketOrder(m).map(k => (k <= st.n ? `${nm[k - 1]} (${k})` : null));
     let match = 0, r = 0;
@@ -284,7 +306,7 @@ function renderSchedule() {
     if (st.n % 2) x.append(el('p', { class: 'note', text: `Bye (counts as a win): ${order[st.n - 1]}` }));
     out.append(el('p', { class: 'note', text: `List your players strongest first, or in random order if you don't know. Later rounds depend on the results, so they can't be printed in advance. After each round: sort players by points (equal points: the order of your list). Pair the top half of each score group against its bottom half, first with first; if two players have met before, swap with the next player. An odd player out moves down to the next score group. With an odd number of players, the lowest-ranked player who hasn't had a bye gets one. Play ${f ? f.rounds : Math.ceil(Math.log2(st.n))} rounds; most points wins, ties broken by the sum of your opponents' points.` }));
   } else if (kind === 'de') {
-    out.append(el('p', { class: 'note', text: 'Players are seeded in the order of your list (strongest first); the number after a name is the seed. Lose twice and you’re out: the loser of each winners’-bracket match moves to the losers’ bracket. Any match can start as soon as both its players are known, so the two brackets run side by side.' }));
+    out.append(el('p', { class: 'note', text: 'Players are seeded strongest first (by your ratings, or else in the order of your list); the number after a name is the seed. Lose twice and you’re out: the loser of each winners’-bracket match moves to the losers’ bracket. Any match can start as soon as both its players are known, so the two brackets run side by side.' }));
     const ms = deBracket(nm.map((x, i) => `${x} (${i + 1})`));
     const groups = new Map();
     for (const mt of ms) {
@@ -308,6 +330,7 @@ function changed() {
 }
 for (const inp of Object.values(inputs)) inp.addEventListener('input', changed);
 $('#names').addEventListener('input', renderSchedule);
+$('#ratings').addEventListener('input', changed);
 $('#sched-kind').addEventListener('change', () => { schedTouched = true; renderSchedule(); });
 $('#print').addEventListener('click', () => window.print());
 readHash();

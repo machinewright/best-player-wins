@@ -91,3 +91,8 @@ noscript p { background: #fff1d6; padding: 10px; }
 .schedule > .note, .schedule > .warn { column-span: all; }
 .warn { color: #8a3b12; font-weight: 600; }
 #p-feel { display: block; margin-bottom: 6px; }
+details.ratings { margin-top: 10px; }
+details.ratings summary { cursor: pointer; font-weight: 600; color: #1e5b9c; }
+details.ratings label { margin-top: 8px; font-weight: 400; }
+.widget code { font: 13px ui-monospace, Menlo, monospace; background: #fff; padding: 0 4px; border-radius: 4px; }
+input:disabled { opacity: .6; }

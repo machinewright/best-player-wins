@@ -52,6 +52,12 @@ export function sigmaFor(n, p) {
   return (lo + hi) / 2;
 }
 
+// Elo-style ratings (a 400-point gap = 10-to-1 odds) -> strengths on the logit scale, strongest first.
+export function fieldFromRatings(ratings) {
+  return ratings.slice().sort((a, b) => b - a).map(r => r * Math.LN10 / 400);
+}
+export const sd = xs => { const m = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / xs.length); };
+
 // ---------- one game ----------
 // Returns 1 if i wins, 0 if j wins, 0.5 for a draw. drawNu = 0 means no draws.
 export function makeGame(s, drawNu, rand) {
@@ -364,9 +370,10 @@ export function deBracket(names) {
 }
 
 // ---------- Monte Carlo summary ----------
-export function evaluate(format, n, opts, { sigma, drawRate = 0, runs = 20000, seed = 7 } = {}) {
+// `field` (optional): strengths, strongest first, replacing the evenly spread group.
+export function evaluate(format, n, opts, { sigma, field = null, drawRate = 0, runs = 20000, seed = 7 } = {}) {
   const rand = rng(seed);
-  const s = quantileField(n, sigma);
+  const s = field || quantileField(n, sigma);
   const game = makeGame(s, nuForDrawRate(drawRate), rand);
   opts = { ...opts, field: s };
   const winCount = new Array(n).fill(0);

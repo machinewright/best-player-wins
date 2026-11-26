@@ -191,3 +191,11 @@ test('printable double-elimination bracket: 2n-2 matches before the reset, every
     for (const m of ms) for (const x of [m.a, m.b]) { const r = /match (\d+)/.exec(x); if (r) assert.ok(+r[1] < m.id, `forward reference in match ${m.id}`); }
   }
 });
+
+test('ratings: a 200-point gap gives the Elo win chance (76%)', () => {
+  const f = S.fieldFromRatings([1500, 1700]);
+  close(S.logistic(f[0] - f[1]), 1 / (1 + 10 ** (-200 / 400)), 1e-12, 'elo');
+  close(S.logistic(f[0] - f[1]), 0.76, 0.001, '76%');
+  const r = S.evaluate(S.roundRobin, 2, {}, { field: f, runs: 40000, seed: 3 });
+  close(r.pBest, 0.76, 0.01, 'simulated');
+});

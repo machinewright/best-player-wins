@@ -52,6 +52,13 @@ Anthropic) · November 2026 · <a href="#behind">What's behind the numbers</a></
   </label>
   <p class="note">Using chess-style (Elo) ratings? If your best player is rated 100 points above a middling one, that's
   64%; 200 points, 76%; 300 points, 85%; 400 points, 91%.</p>
+  <details class="ratings">
+    <summary>Have ratings for your players? Paste them instead</summary>
+    <label>One player per line: a name and a rating, like <code>Ada 1850</code>, or just the rating. Elo-style ratings
+      as in chess, where a 400-point gap means 10-to-1 odds.
+      <textarea id="ratings" rows="5" placeholder="Ada 1850&#10;Bo 1720&#10;Chen 1655&#10;…"></textarea></label>
+    <p id="ratings-status" class="note" aria-live="polite"></p>
+  </details>
   <h3>Your time</h3>
   <div class="grid">
     <label>Tables, boards or courts <input id="tables" type="number" min="1" max="64" inputmode="numeric" placeholder="8"></label>
@@ -123,7 +130,7 @@ highlights. Names stay in your browser.</p>
 
 <h2 id="behind">What's behind the numbers</h2>
 <p><strong>Players.</strong> Your group is modelled as players of evenly spread strength, from best to weakest, as
-in a typical club. The slider sets how far apart they are. Each game is won with the probability given by the
+in a typical club. The slider sets how far apart they are. If you paste ratings, your own players are used instead. Each game is won with the probability given by the
 usual rating formula (Elo, or Bradley–Terry): the bigger the gap, the likelier the stronger player wins. Draws, when
 switched on, are most frequent between equal players. Nobody has good or bad days beyond that.</p>
 <p><strong>Formats.</strong> Knockouts use the standard bracket (seed 1 and seed 2 can only meet in the final; byes
