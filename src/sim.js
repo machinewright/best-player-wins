@@ -250,12 +250,34 @@ export function firstRoundPairs(q) {
   return out;
 }
 
+// Snake seeding into G groups: seeds 1..G go to groups 1..G, seeds G+1..2G back from G to 1, and so on.
+export function snakeGroups(seeds, G) {
+  const groups = Array.from({ length: G }, () => []);
+  seeds.forEach((p, k) => { const row = Math.floor(k / G), col = k % G; groups[row % 2 ? G - 1 - col : col].push(p); });
+  return groups;
+}
+
+// Knockout seed order for group qualifiers (qualifiers[rank][group]): group winners first, then runners-up (and so
+// on); runners-up are swapped until no first-round game pairs two players from the same group, when possible.
+export function crossDraw(qualifiers, groupOf) {
+  const ko = qualifiers.flat();
+  const fixed = qualifiers[0].length;
+  const clashes = () => firstRoundPairs(ko.length).filter(([a, b]) => groupOf(ko[a]) === groupOf(ko[b])).length;
+  let c = clashes();
+  for (let pass = 0; c > 0 && pass < 4; pass++) {
+    for (let i = fixed; i < ko.length && c > 0; i++) for (let j = i + 1; j < ko.length && c > 0; j++) {
+      [ko[i], ko[j]] = [ko[j], ko[i]];
+      const c2 = clashes();
+      if (c2 < c) c = c2; else [ko[i], ko[j]] = [ko[j], ko[i]];
+    }
+  }
+  return ko;
+}
+
 // Groups of size g (snake seeding), round robin in each group, top `adv` of each group go to a seeded knockout.
 export function groupsKnockout(n, game, rand, { groupSize = 4, adv = 2, seeded = true, field } = {}) {
   const seeds = seedList(n, seeded, rand, field);
-  const G = Math.max(1, Math.round(n / groupSize));
-  const groups = Array.from({ length: G }, () => []);
-  seeds.forEach((p, k) => { const row = Math.floor(k / G), col = k % G; groups[row % 2 ? G - 1 - col : col].push(p); });
+  const groups = snakeGroups(seeds, Math.max(1, Math.round(n / groupSize)));
   const games = new Array(n).fill(0);
   const qualifiers = []; // [rankInGroup][group]
   let groupRounds = 0;
@@ -274,18 +296,8 @@ export function groupsKnockout(n, game, rand, { groupSize = 4, adv = 2, seeded =
   }
   // knockout seeding: group winners first, then runners-up (and so on); runners-up are then swapped until no
   // first-round knockout game pairs two players from the same group (when that is possible)
-  const ko = qualifiers.flat();
   const groupOf = new Map(); groups.forEach((g, k) => g.forEach(p => groupOf.set(p, k)));
-  const fixed = qualifiers[0].length;
-  const clashes = () => firstRoundPairs(ko.length).filter(([a, b]) => groupOf.get(ko[a]) === groupOf.get(ko[b])).length;
-  let c = clashes();
-  for (let pass = 0; c > 0 && pass < 4; pass++) {
-    for (let i = fixed; i < ko.length && c > 0; i++) for (let j = i + 1; j < ko.length && c > 0; j++) {
-      [ko[i], ko[j]] = [ko[j], ko[i]];
-      const c2 = clashes();
-      if (c2 < c) c = c2; else [ko[i], ko[j]] = [ko[j], ko[i]];
-    }
-  }
+  const ko = crossDraw(qualifiers, p => groupOf.get(p));
   const sub = knockout(ko.length, (i, j) => game(ko[i], ko[j]), rand, { seeded: true });
   sub.games.forEach((c, i) => { games[ko[i]] += c; });
   return { winner: ko[sub.winner], games, rounds: groupRounds + sub.rounds };

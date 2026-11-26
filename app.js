@@ -1,4 +1,4 @@
-import { roundShape, slotsNeeded, circleSchedule, bracketOrder, deBracket } from './src/sim.js';
+import { roundShape, slotsNeeded, circleSchedule, bracketOrder, deBracket, snakeGroups, crossDraw } from './src/sim.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -270,6 +270,23 @@ function renderSchedule() {
   const sec = (h) => { const x = el('section', { class: 'round' }, el('h4', { text: h })); out.append(x); return x; };
   const list = (parent, items) => { const ol = el('ol'); for (const t of items) ol.append(el('li', { text: t })); parent.append(ol); };
   const tableLabel = (k, total) => { const waves = Math.ceil(total / st.tables); return `${waves > 1 ? `wave ${Math.floor(k / st.tables) + 1}, ` : ''}table ${(k % st.tables) + 1}`; };
+  // A knockout bracket for the given entrants in seed order (null = bye), as sections of numbered matches.
+  function koSections(entrants, firstMatch) {
+    let m = 1; while (m < entrants.length) m *= 2;
+    let slots = bracketOrder(m).map(k => (k <= entrants.length ? entrants[k - 1] : null));
+    let match = firstMatch, r = 0;
+    const roundName = left => (left === 2 ? 'Final' : left === 4 ? 'Semi-finals' : left === 8 ? 'Quarter-finals' : `Round ${r + 1}`);
+    while (slots.length > 1) {
+      const next = [], items = [];
+      for (let k = 0; k < slots.length; k += 2) {
+        const a = slots[k], b = slots[k + 1];
+        if (!a || !b) { next.push(a || b); continue; }
+        match++; items.push(`Match ${match}: ${a} – ${b}`); next.push(`winner of match ${match}`);
+      }
+      list(sec(roundName(slots.length)), items);
+      slots = next; r++;
+    }
+  }
   if (kind === 'rr') {
     const sched = circleSchedule(st.n);
     if (sched[0].length > st.tables) out.append(el('p', { class: 'note', text: waveNote }));
@@ -282,20 +299,7 @@ function renderSchedule() {
     });
   } else if (kind === 'ko') {
     out.append(el('p', { class: 'note', text: 'Players are seeded strongest first (by your ratings, or else in the order of your list); the number after a name is the seed. Top seeds get the byes.' }));
-    let m = 1; while (m < st.n) m *= 2;
-    let slots = bracketOrder(m).map(k => (k <= st.n ? `${nm[k - 1]} (${k})` : null));
-    let match = 0, r = 0;
-    const roundName = left => (left === 2 ? 'Final' : left === 4 ? 'Semi-finals' : left === 8 ? 'Quarter-finals' : `Round ${r + 1}`);
-    while (slots.length > 1) {
-      const next = [], items = [];
-      for (let k = 0; k < slots.length; k += 2) {
-        const a = slots[k], b = slots[k + 1];
-        if (!a || !b) { next.push(a || b); continue; }
-        match++; items.push(`Match ${match}: ${a} – ${b}`); next.push(`winner of match ${match}`);
-      }
-      list(sec(roundName(slots.length)), items);
-      slots = next; r++;
-    }
+    koSections(nm.map((x, i) => `${x} (${i + 1})`), 0);
   } else if (kind === 'sw') {
     const order = nm.map((x, i) => `${x} (${i + 1})`);
     const half = Math.floor(st.n / 2);
@@ -317,6 +321,25 @@ function renderSchedule() {
       const x = sec(h); list(x, items);
       if (h === 'Grand final') x.append(el('p', { class: 'note', text: 'If the player from the losers’ bracket wins, play one more game: now both have lost once.' }));
     }
+  } else if (kind === 'gr') {
+    const G = Math.max(1, Math.round(st.n / 4)), letters = 'ABCDEFGHIJKLMNOP';
+    const groups = snakeGroups(nm.map((x, i) => `${x} (${i + 1})`), G);
+    out.append(el('p', { class: 'note', text: 'Players are spread over the groups by strength (by your ratings, or else in the order of your list): the strongest one in each group, then the next, so every group is about equally hard. Each group plays a round robin; the top two go through.' }));
+    // group rounds, with tables numbered across all groups
+    const per = groups.map(g => circleSchedule(g.length));
+    const R = Math.max(...per.map(x => x.length));
+    for (let r = 0; r < R; r++) {
+      const games = [];
+      per.forEach((sch, gi) => (sch[r] || []).forEach(([a, b]) => games.push(`Group ${letters[gi]}: ${groups[gi][a]} – ${groups[gi][b]}`)));
+      const x = sec(`Group round ${r + 1}`);
+      list(x, games.map((t, k) => `${tableLabel(k, games.length)}: ${t}`));
+      const sitting = [];
+      per.forEach((sch, gi) => { if (!sch[r]) return; const on = new Set(sch[r].flat()); groups[gi].forEach((p, i) => { if (!on.has(i)) sitting.push(`${p} (group ${letters[gi]})`); }); });
+      if (sitting.length) x.append(el('p', { class: 'note', text: `Sits out: ${sitting.join(', ')}` }));
+    }
+    const qual = [letters.slice(0, G).split('').map(c => `winner of group ${c}`), letters.slice(0, G).split('').map(c => `runner-up of group ${c}`)];
+    const ko = crossDraw(qual, x => x.slice(-1));
+    koSections(ko, 0);
   } else {
     out.append(el('p', { class: 'note', text: 'This page doesn’t print group schedules yet. Run each group as a small round robin (choose "Round robin" with the group’s size), then a knockout for the top two of each group.' }));
   }

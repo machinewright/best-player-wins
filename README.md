@@ -2,7 +2,8 @@
 
 A page for anyone running a tournament (a club night, an office league, a weekend with friends): enter your players,
 how lopsided your games are, your tables and your time, and see how often each format crowns your best player.
-Then print a round-robin schedule or a knockout draw.
+You can also paste your players' Elo-style ratings. Then print the schedule: round robin, knockout, double
+elimination, groups then knockout, or the first Swiss round with pairing instructions.
 
 Live: https://machinewright.github.io/best-player-wins/
 
