@@ -199,3 +199,44 @@ test('ratings: a 200-point gap gives the Elo win chance (76%)', () => {
   const r = S.evaluate(S.roundRobin, 2, {}, { field: f, runs: 40000, seed: 3 });
   close(r.pBest, 0.76, 0.01, 'simulated');
 });
+
+test('best-of matches: exact win chances (no draws; with draws by enumeration)', () => {
+  const rand = S.rng(3), runs = 200000;
+  // no draws: best of 3 = p^2 (3 - 2p), best of 5 = p^3 (10 - 15p + 6p^2)
+  const s = [Math.log(1.5), 0]; // p = 0.6
+  const p = 0.6;
+  for (const [k, want] of [[3, p * p * (3 - 2 * p)], [5, p ** 3 * (10 - 15 * p + 6 * p * p)]]) {
+    const m = S.matchOf(S.makeGame(s, 0, rand), k);
+    let w = 0; for (let t = 0; t < runs; t++) w += m(0, 1) === 1;
+    close(w / runs, want, 0.004, `best of ${k}`);
+  }
+  // with draws: enumerate all game sequences of a best of 3 that stops early
+  const nu = S.nuForDrawRate(0.3), pi = 1.5, pj = 1, dr = nu * Math.sqrt(pi * pj), Z = pi + pj + dr;
+  const out = [[1, pi / Z], [0, pj / Z], [0.5, dr / Z]];
+  const res = { 1: 0, 0: 0, 0.5: 0 };
+  (function go(a, b, g, pr) {
+    if (g === 3 || a > 1.5 || b > 1.5) { res[a > b ? 1 : b > a ? 0 : 0.5] += pr; return; }
+    for (const [r, q] of out) go(a + r, b + 1 - r, g + 1, pr * q);
+  })(0, 0, 0, 1);
+  const m = S.matchOf(S.makeGame(s, nu, rand), 3);
+  const cnt = { 1: 0, 0: 0, 0.5: 0 };
+  for (let t = 0; t < runs; t++) cnt[m(0, 1)]++;
+  for (const r of [1, 0, 0.5]) close(cnt[r] / runs, res[r], 0.004, `draws, result ${r}`);
+});
+
+test('best-of knockout matches exact recursion with the match win chance', () => {
+  const n = 8, sigma = S.sigmaFor(n, 0.75), s = S.quantileField(n, sigma);
+  const P = (i, j) => { const q = S.logistic(s[i] - s[j]); return q * q * (3 - 2 * q); };
+  // exact seeded bracket with match probabilities
+  const slots = S.bracketOrder(8).map(k => k - 1);
+  function dist(lo, hi) {
+    if (hi - lo === 1) return new Map([[slots[lo], 1]]);
+    const mid = (lo + hi) / 2, L = dist(lo, mid), R = dist(mid, hi), out = new Map();
+    for (const [a, pa] of L) { let t = 0; for (const [b, pb] of R) t += pb * P(a, b); out.set(a, pa * t); }
+    for (const [b, pb] of R) { let t = 0; for (const [a, pa] of L) t += pa * P(b, a); out.set(b, pb * t); }
+    return out;
+  }
+  const want = dist(0, 8).get(0);
+  const r = S.evaluate(S.knockout, n, { seeded: true }, { sigma, runs: 60000, bestOf: 3 });
+  close(r.pBest, want, 4 * r.seBest, 'best-of-3 knockout');
+});

@@ -71,6 +71,17 @@ export function makeGame(s, drawNu, rand) {
 // Draw rate d between equal players -> Davidson nu.
 export const nuForDrawRate = d => (d <= 0 ? 0 : 2 * d / (1 - d));
 
+// A match of up to k games (k odd): it stops once one player has more than k/2 points; a draw counts half to each;
+// a match that ends level is a drawn match (0.5), which formats that need a winner replay like a drawn game.
+export function matchOf(game, k = 1) {
+  if (k <= 1) return game;
+  return (i, j) => {
+    let a = 0, b = 0;
+    for (let g = 0; g < k && a <= k / 2 && b <= k / 2; g++) { const r = game(i, j); a += r; b += 1 - r; }
+    return a > b ? 1 : b > a ? 0 : 0.5;
+  };
+}
+
 // A game that must have a winner (knockout, playoff): replay draws.
 function decisive(game, i, j) {
   for (;;) { const r = game(i, j); if (r !== 0.5) return r === 1 ? i : j; }
@@ -383,10 +394,11 @@ export function deBracket(names) {
 
 // ---------- Monte Carlo summary ----------
 // `field` (optional): strengths, strongest first, replacing the evenly spread group.
-export function evaluate(format, n, opts, { sigma, field = null, drawRate = 0, runs = 20000, seed = 7 } = {}) {
+// `bestOf`: games per match (1, 3, 5...).
+export function evaluate(format, n, opts, { sigma, field = null, drawRate = 0, runs = 20000, seed = 7, bestOf = 1 } = {}) {
   const rand = rng(seed);
   const s = field || quantileField(n, sigma);
-  const game = makeGame(s, nuForDrawRate(drawRate), rand);
+  const game = matchOf(makeGame(s, nuForDrawRate(drawRate), rand), bestOf);
   opts = { ...opts, field: s };
   const winCount = new Array(n).fill(0);
   let minGames = Infinity, sumGames = 0, rounds = 0;

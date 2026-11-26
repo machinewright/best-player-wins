@@ -96,5 +96,7 @@ details.ratings summary { cursor: pointer; font-weight: 600; color: #1e5b9c; }
 details.ratings label { margin-top: 8px; font-weight: 400; }
 .widget code { font: 13px ui-monospace, Menlo, monospace; background: #fff; padding: 0 4px; border-radius: 4px; }
 input:disabled { opacity: .6; }
+#combos tr.nofit td, #combos-all tr.nofit td { opacity: .5; }
+#combos-all tr.front td { font-weight: 600; }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
