@@ -106,7 +106,7 @@ function hm(min) {
 
 // ---------- results ----------
 const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
-let jobId = 0, rows = new Map(), lastState = null, lastFormats = [], lastCombos = [], combosData = new Map();
+let jobId = 0, rows = new Map(), lastState = null, lastFormats = [];
 
 function render(st) {
   lastState = st;
@@ -133,11 +133,8 @@ function render(st) {
   $('#takeaway').textContent = 'Playing each format a few thousand times…';
   jobId++;
   const { lo: swissMin, hi: swissMax } = swissRange(st.n);
-  lastCombos = combosFor(st, fmts);
-  combosData = new Map(); drawCombos();
   worker.postMessage({ id: jobId, n: st.n, p: st.p, draw: st.draw, seeding: st.seeding, bestOf: st.bestOf, runs: 4000, ratings: st.ratings ? st.ratings.map(x => x.r) : null,
-    formats: fmts.map(({ key, fn, opts }) => ({ key, fn, opts })),
-    combos: lastCombos.filter(c => !c.same).map(({ key, fn, opts, bestOf }) => ({ key, fn, opts, bestOf })), swissMin, swissMax });
+    formats: fmts.map(({ key, fn, opts }) => ({ key, fn, opts })), swissMin, swissMax });
   swissData = []; drawSwiss();
   renderSchedule();
 }
@@ -166,9 +163,7 @@ worker.onmessage = e => {
     R.bar.setAttribute('aria-label', `${R.f.name}: the best player wins ${pct(m.r.pBest)}`);
     R.row.querySelector('.facts').textContent = factsLine(R.f, m.r, lastState);
     if ([...rows.keys()].every(k => results.has(k) && rows.get(k))) takeaway();
-    drawCombos();
   } else if (m.type === 'swiss') { swissData = m.swiss; drawSwiss(); }
-  else if (m.type === 'combos') { for (const c of m.combos) combosData.set(c.key, c); drawCombos(); takeaway(); }
 };
 
 function takeaway() {
@@ -199,49 +194,11 @@ function takeaway() {
     const list = names.length === 2 ? names.join(' and ') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
     t += `${scope}${list} are about equally good: the differences are within the margin of error. The quickest of them is ${pick.f.say}, about ${hm(pick.f.minutes)}.`;
   }
-  // a different match length that fits the time and clearly does better
-  const alt = comboRows().filter(c => c.r && c.fits && c.bestOf !== st.bestOf).sort((a, b) => b.r.pBest - a.r.pBest)[0];
-  if (alt && alt.r.pBest - pick.r.pBest > 2 * Math.hypot(alt.r.seBest, pick.r.seBest)) {
-    t += ` Playing ${alt.bestOf === 1 ? 'single games' : `best-of-${alt.bestOf} matches`} instead would do better: ${alt.say} gives ${pct(alt.r.pBest)} in about ${hm(alt.minutes)} (see “Longer matches or more rounds?” below).`;
-  }
   $('#takeaway').textContent = t;
   rows.forEach(R => { R.row.classList.toggle('pick', R.f.key === pick.f.key); });
   suggestSchedule(pick.f);
 }
 
-// ---------- longer matches or more rounds? ----------
-// Every format at every match length. Combinations identical to the main list reuse its results.
-function combosFor(st, fmts) {
-  const out = [];
-  for (const k of [1, 3, 5]) {
-    for (const f of formatsFor(st, k)) {
-      const same = k === st.bestOf ? fmts.find(g => g.fn === f.fn && JSON.stringify(g.opts) === JSON.stringify(f.opts)) : null;
-      if (out.some(c => c.bestOf === k && c.fn === f.fn && JSON.stringify(c.opts) === JSON.stringify(f.opts))) continue;
-      out.push({ ...f, key: `${f.key}-${k}`, bestOf: k, same: same ? same.key : null,
-        say: k === 1 ? f.say : `${f.say} with best-of-${k} matches` });
-    }
-  }
-  return out;
-}
-const comboRows = () => lastCombos.map(c => ({ ...c, r: c.same ? results.get(c.same) : combosData.get(c.key) }));
-function drawCombos() {
-  const st = lastState; if (!st) return;
-  const all = comboRows(), done = all.filter(c => c.r);
-  const body = $('#combos tbody'), allBody = $('#combos-all tbody');
-  body.textContent = ''; allBody.textContent = '';
-  $('#combos-status').textContent = done.length < all.length ? `Computing… ${done.length} of ${all.length}` : '';
-  if (done.length < all.length) return;
-  const byTime = done.slice().sort((a, b) => a.minutes - b.minutes || b.r.pBest - a.r.pBest);
-  // the best choice for each amount of time: better than everything that takes no longer
-  let best = -1;
-  const front = new Set();
-  for (const c of byTime) if (c.r.pBest > best + 0.005) { front.add(c.key); best = c.r.pBest; }
-  const row = c => el('tr', { class: (c.fits ? '' : 'nofit') + (front.has(c.key) ? ' front' : '') },
-    el('td', { text: c.name }), el('td', { text: c.bestOf === 1 ? 'one game' : `best of ${c.bestOf}` }),
-    el('td', { text: hm(c.minutes) }), el('td', { text: pct(c.r.pBest) }));
-  for (const c of byTime) { if (front.has(c.key)) body.append(row(c)); allBody.append(row(c)); }
-  $('#combos-note').textContent = st.hours !== null ? `Greyed out: more than the ${hm(st.hours * 60)} you have.` : 'Enter the hours you have above to grey out what doesn’t fit.';
-}
 
 // ---------- Swiss rounds chart ----------
 // From the usual number of rounds up to 6 more.
