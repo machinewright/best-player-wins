@@ -1,0 +1,44 @@
+n=16 p=.8 rough {
+  KO: '34.9±0.7',
+  DE: '42.6±0.7',
+  Sw4: '32.5±0.7',
+  Sw6: '37.3±0.7',
+  Groups: '35.8±0.7',
+  RR: '49.5±0.7'
+}
+n=16 p=.8 exact {
+  KO: '37.5±0.7',
+  DE: '45.1±0.7',
+  Sw4: '30.2±0.6',
+  Sw6: '38.3±0.7',
+  Groups: '36.8±0.7',
+  RR: '49.5±0.7'
+}
+n=16 p=.8 none {
+  KO: '32.3±0.7',
+  DE: '41.3±0.7',
+  Sw4: '32.1±0.7',
+  Sw6: '36.6±0.7',
+  Groups: '35.2±0.7',
+  RR: '49.5±0.7'
+}
+n=8 p=.8 rough {
+  KO: '48.5±0.7',
+  DE: '59.0±0.7',
+  Sw3: '46.3±0.7',
+  Sw5: '53.6±0.7',
+  Groups: '51.3±0.7',
+  RR: '54.5±0.7'
+}
+n=32 p=.8 rough {
+  KO: '25.1±0.6',
+  DE: '30.5±0.7',
+  Sw5: '23.5±0.6',
+  Sw7: '26.4±0.6',
+  Groups: '25.5±0.6',
+  RR: '50.6±0.7'
+}
+Swiss n=8 L=3: first place shared 0.0%, best player on top score 46.3% (shared 0.0%)
+Swiss n=16 L=4: first place shared 0.0%, best player on top score 32.5% (shared 0.0%)
+Swiss n=32 L=5: first place shared 0.0%, best player on top score 23.3% (shared 0.0%)
+P(best beats #2, #4, #8, #16): 0.60 0.69 0.79 0.94

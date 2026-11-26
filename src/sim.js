@@ -212,18 +212,20 @@ function pairSwiss(order, score, met) {
   const groups = new Map();
   for (const p of order) { const g = groups.get(score[p]) || []; g.push(p); groups.set(score[p], g); }
   // candidate preference list per player: Dutch partner first, then by distance in the order
-  const pos = new Map(order.map((p, k) => [p, k]));
   const pref = new Map();
   for (const [, g] of groups) {
     const h = Math.floor(g.length / 2);
     g.forEach((p, k) => { if (k < h) pref.set(p, g[k + h]); });
   }
+  let budget = 20000; // backtracking steps; if a rematch-free pairing isn't found within it, rematches are allowed
   function solve(left, allowRematch) {
     if (left.length === 0) return [];
+    if (!allowRematch && --budget < 0) return null;
     const a = left[0];
     const rest = left.slice(1);
     const want = pref.get(a);
-    const cands = rest.slice().sort((x, y) => (x === want ? -1 : y === want ? 1 : Math.abs(pos.get(x) - pos.get(a)) - Math.abs(pos.get(y) - pos.get(a))));
+    // `a` is the highest-ranked unpaired player, so "nearest below" is simply list order
+    const cands = want !== undefined && rest.includes(want) ? [want, ...rest.filter(x => x !== want)] : rest;
     for (const b of cands) {
       if (!allowRematch && met[a].has(b)) continue;
       const sub = solve(rest.filter(x => x !== b), allowRematch);
