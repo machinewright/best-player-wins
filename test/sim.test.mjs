@@ -150,3 +150,33 @@ test('draws: equal players draw at the requested rate', () => {
   let d = 0; const N = 50000; for (let k = 0; k < N; k++) if (g(0, 1) === 0.5) d++;
   close(d / N, 0.3, 0.01, 'draw rate');
 });
+
+test('groups + knockout: no first-round knockout game between players from the same group', () => {
+  for (const n of [8, 10, 12, 13, 16, 20, 26, 28, 36, 44, 64]) {
+    const rand = S.rng(2), s = S.quantileField(n, 30); // huge skill gaps: group order = strength order
+    const log = [];
+    const g = S.makeGame(s, 0, rand);
+    S.groupsKnockout(n, (a, b) => { log.push([a, b]); return g(a, b); }, rand, { seeded: true });
+    const G = Math.max(1, Math.round(n / 4)), groupOf = new Array(n);
+    [...Array(n).keys()].forEach(k => { const row = Math.floor(k / G), col = k % G; groupOf[k] = row % 2 ? G - 1 - col : col; });
+    const sizes = new Array(G).fill(0); groupOf.forEach(x => sizes[x]++);
+    const groupGames = sizes.reduce((t, x) => t + x * (x - 1) / 2, 0);
+    const firstKO = log.slice(groupGames, groupGames + S.firstRoundPairs(2 * G).length);
+    for (const [a, b] of firstKO) assert.notEqual(groupOf[a], groupOf[b], `n=${n}: ${a} vs ${b} from the same group`);
+  }
+});
+
+test('roundShape: games match a simulated tournament', () => {
+  const rand = S.rng(8);
+  for (const n of [5, 8, 9, 13, 16, 17, 24, 37]) {
+    const g = S.makeGame(S.quantileField(n, 1), 0, rand);
+    const sum = a => a.reduce((x, y) => x + y, 0);
+    const games = r => sum(r.games) / 2;
+    for (const [name, fn, o] of [['groupsKnockout', S.groupsKnockout, {}], ['roundRobin', S.roundRobin, {}], ['knockout', S.knockout, {}], ['swiss', S.swiss, { rounds: 4 }]]) {
+      if (n < 6 && name === 'groupsKnockout') continue;
+      // tie-break playoffs add games that the shape leaves out, so use huge skill gaps (no ties at the top)
+      const big = S.makeGame(S.quantileField(n, 40), 0, rand);
+      assert.equal(sum(S.roundShape(name, n, o)), games(fn(n, big, rand, o)), `${name} n=${n}`);
+    }
+  }
+});

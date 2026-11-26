@@ -13,7 +13,13 @@ const pct = x => `${Math.round(100 * x)}%`;
 const inputs = { n: $('#n'), p: $('#p'), draw: $('#draw'), seeding: $('#seeding'), tables: $('#tables'), mins: $('#mins'), hours: $('#hours') };
 function readHash() {
   const h = new URLSearchParams(location.hash.slice(1));
-  for (const [k, inp] of Object.entries(inputs)) if (h.has(k)) inp.value = h.get(k);
+  for (const [k, inp] of Object.entries(inputs)) {
+    if (!h.has(k)) continue;
+    const v = h.get(k);
+    if (inp.tagName === 'SELECT') { if ([...inp.options].some(o => o.value === v)) inp.value = v; continue; }
+    const x = Number(v);
+    if (v !== '' && Number.isFinite(x)) inp.value = String(Math.min(+inp.max || Infinity, Math.max(+inp.min || 0, x)));
+  }
 }
 function writeHash(st) {
   const h = new URLSearchParams();
@@ -43,22 +49,23 @@ function feel(p) {
 function formatsFor(st) {
   const { n } = st;
   const L = Math.max(1, Math.ceil(Math.log2(n)));
+  const cap = swissRange(n).hi;
   const fits = k => st.hours === null || timeOf(roundShape('swiss', n, { rounds: k }), st) <= st.hours * 60;
-  let more = Math.min(n - 1, L + 2);
-  if (st.hours !== null) { // as many Swiss rounds as fit (at least L+1, at most n-1)
-    let k = L + 1; while (k + 1 <= n - 1 && fits(k + 1)) k++;
-    more = Math.min(n - 1, Math.max(L + 1, k));
+  let more = Math.min(cap, L + 2);
+  if (st.hours !== null) { // as many Swiss rounds as fit (at least L+1, at most the cap)
+    let k = L + 1; while (k + 1 <= cap && fits(k + 1)) k++;
+    more = Math.min(cap, Math.max(L + 1, k));
   }
   const moreWhat = st.hours !== null && fits(more) ? 'The most Swiss rounds that fit your time.'
     : `The same with ${more - L === 1 ? 'one extra round' : more - L === 2 ? 'two extra rounds' : `${more - L} extra rounds`}.`;
   const list = [
-    { key: 'ko', fn: 'knockout', opts: {}, name: 'Knockout', what: 'Lose once and you’re out.' },
-    { key: 'de', fn: 'doubleElim', opts: {}, name: 'Double elimination', what: 'Lose twice and you’re out. Players who lose once drop into a second bracket and can still win.' },
-    { key: 'sw1', fn: 'swiss', opts: { rounds: L }, name: `Swiss, ${L} round${L > 1 ? 's' : ''}`, what: 'Everyone plays every round, against someone on the same score so far. Nobody is knocked out. This many rounds is the usual rule of thumb.' },
+    { key: 'ko', fn: 'knockout', opts: {}, name: 'Knockout', say: 'a knockout', what: 'Lose once and you’re out.' },
+    { key: 'de', fn: 'doubleElim', opts: {}, name: 'Double elimination', say: 'double elimination', what: 'Lose twice and you’re out. Players who lose once drop into a second bracket and can still win.' },
+    { key: 'sw1', fn: 'swiss', opts: { rounds: L }, name: `Swiss, ${L} round${L > 1 ? 's' : ''}`, say: `a ${L}-round Swiss`, what: 'Everyone plays every round, against someone on the same score so far. Nobody is knocked out. This many rounds is the usual rule of thumb.' },
   ];
-  if (more > L) list.push({ key: 'sw2', fn: 'swiss', opts: { rounds: more }, name: `Swiss, ${more} rounds`, what: moreWhat });
-  if (n >= 6) list.push({ key: 'gr', fn: 'groupsKnockout', opts: { groupSize: 4, adv: 2 }, name: 'Groups, then knockout', what: 'Groups of about four play everyone in their group; the top two of each group go into a knockout.' });
-  list.push({ key: 'rr', fn: 'roundRobin', opts: {}, name: 'Round robin', what: 'Everyone plays everyone once. Most points wins.' });
+  if (more > L) list.push({ key: 'sw2', fn: 'swiss', opts: { rounds: more }, name: `Swiss, ${more} rounds`, say: `a ${more}-round Swiss`, what: moreWhat });
+  if (n >= 6) list.push({ key: 'gr', fn: 'groupsKnockout', opts: { groupSize: 4, adv: 2 }, name: 'Groups, then knockout', say: 'groups then a knockout', what: 'Groups of three to five play everyone in their group; the top two of each group go into a knockout.' });
+  list.push({ key: 'rr', fn: 'roundRobin', opts: {}, name: 'Round robin', say: 'a round robin', what: 'Everyone plays everyone once. Most points wins.' });
   for (const f of list) {
     f.shape = roundShape(f.fn, n, f.opts);
     f.rounds = f.shape.length;
@@ -144,20 +151,37 @@ function takeaway() {
   const best = ok.slice().sort((a, b) => b.r.pBest - a.r.pBest)[0];
   if (!ok.length) {
     const quick = got.slice().sort((a, b) => a.f.minutes - b.f.minutes)[0];
-    $('#takeaway').textContent = `None of these fits in ${hm(st.hours * 60)} with ${st.tables} table${st.tables === 1 ? '' : 's'}. The quickest format (${quick.f.name.toLowerCase()}) needs about ${hm(quick.f.minutes)}; more tables or shorter games would help.`;
+    $('#takeaway').textContent = `None of these fits in ${hm(st.hours * 60)} with ${st.tables} table${st.tables === 1 ? '' : 's'}. The quickest, ${quick.f.say}, needs about ${hm(quick.f.minutes)}; more tables or shorter games would help.`;
     rows.forEach(R => R.row.classList.remove('pick'));
     return;
   }
+  const ranked = ok.slice().sort((a, b) => b.r.pBest - a.r.pBest);
+  const top = ranked[0];
+  // formats whose difference from the top one is within the margin of error count as equally good
+  const near = ranked.filter(x => top.r.pBest - x.r.pBest <= 2 * Math.hypot(top.r.seBest, x.r.seBest));
+  const pick = near.slice().sort((a, b) => a.f.minutes - b.f.minutes)[0];
+  const scope = st.hours !== null ? 'Of the formats that fit your time, ' : 'Of these, ';
   let t = `In a knockout, your best player wins ${pct(ko.r.pBest)} of the time. `;
-  if (best.f.key === 'ko') t += st.hours !== null ? 'Within your time, nothing does better.' : '';
-  else t += `${st.hours !== null ? 'Of the formats that fit your time, ' : 'Of these, '}${best.f.name.toLowerCase()} does best: ${pct(best.r.pBest)}, with ${best.f.rounds} rounds instead of ${ko.f.rounds}.`;
+  if (near.length === 1) {
+    t += top.f.key === 'ko' ? (st.hours !== null ? 'Within your time, nothing does better.' : '')
+      : `${scope}${top.f.say} does best: ${pct(top.r.pBest)}, with ${top.f.rounds} rounds instead of ${ko.f.rounds}.`;
+  } else {
+    const names = near.map(x => `${x.f.say} (${pct(x.r.pBest)})`);
+    const list = names.length === 2 ? names.join(' and ') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+    t += `${scope}${list} are about equally good: the differences are within the margin of error. The quickest of them is ${pick.f.say}, about ${hm(pick.f.minutes)}.`;
+  }
   $('#takeaway').textContent = t;
-  rows.forEach(R => { R.row.classList.toggle('pick', R.f.key === best.f.key); });
+  rows.forEach(R => { R.row.classList.toggle('pick', R.f.key === pick.f.key); });
+  suggestSchedule(pick.f);
 }
 
 // ---------- Swiss rounds chart ----------
-// From the usual number of rounds up to 8 more (never more than n - 1, when everyone has met everyone).
-function swissRange(n) { const L = Math.max(1, Math.ceil(Math.log2(n))); return { lo: Math.min(L, n - 1), hi: Math.min(n - 1, L + 8) }; }
+// From the usual number of rounds up to 6 more.
+// Capped at 60% of the field: beyond that, Swiss pairing often can't avoid rematches (measured in proto/swisscap.mjs).
+function swissRange(n) {
+  const L = Math.max(1, Math.ceil(Math.log2(n))), lo = Math.min(L, n - 1);
+  return { lo, hi: Math.max(lo, Math.min(n - 1, L + 6, Math.floor(0.6 * n))) };
+}
 let swissData = [];
 function drawSwiss() {
   const svg = $('#swiss-chart'), tbody = $('#swiss-table tbody');
@@ -205,39 +229,64 @@ function names(n) {
   const given = $('#names').value.split('\n').map(s => s.trim()).filter(Boolean);
   return Array.from({ length: n }, (_, i) => given[i] || `Player ${i + 1}`);
 }
+let schedTouched = false;
+function suggestSchedule(f) {
+  if (schedTouched) return;
+  const map = { roundRobin: 'rr', knockout: 'ko', swiss: 'sw', doubleElim: 'de', groupsKnockout: 'gr' };
+  $('#sched-kind').value = map[f.fn] || 'rr';
+  renderSchedule();
+}
 function renderSchedule() {
   const st = lastState; if (!st) return;
   const kind = $('#sched-kind').value, out = $('#schedule'); out.textContent = '';
   const nm = names(st.n);
+  const f = lastFormats.find(x => ({ rr: 'roundRobin', ko: 'knockout', sw: 'swiss', de: 'doubleElim', gr: 'groupsKnockout' })[kind] === x.fn);
+  const title = { rr: 'Round robin', ko: 'Knockout', sw: 'Swiss', de: 'Double elimination', gr: 'Groups, then knockout' }[kind];
+  out.append(el('h3', { class: 'sched-title', text: `${title} · ${st.n} players · ${st.tables} table${st.tables === 1 ? '' : 's'}` }));
+  if (f && !f.fits) out.append(el('p', { class: 'warn', text: `This takes about ${hm(f.minutes)}, more than the ${hm(st.hours * 60)} you have.` }));
+  const waveNote = 'With more games than tables, a round is played in waves: wave 2 starts when wave 1 is done.';
+  const sec = (h) => { const x = el('section', { class: 'round' }, el('h4', { text: h })); out.append(x); return x; };
+  const list = (parent, items) => { const ol = el('ol'); for (const t of items) ol.append(el('li', { text: t })); parent.append(ol); };
+  const tableLabel = (k, total) => { const waves = Math.ceil(total / st.tables); return `${waves > 1 ? `wave ${Math.floor(k / st.tables) + 1}, ` : ''}table ${(k % st.tables) + 1}`; };
   if (kind === 'rr') {
     const sched = circleSchedule(st.n);
+    if (sched[0].length > st.tables) out.append(el('p', { class: 'note', text: waveNote }));
     sched.forEach((round, r) => {
+      const x = sec(`Round ${r + 1}`);
+      list(x, round.map(([a, b], k) => `${tableLabel(k, round.length)}: ${nm[a]} – ${nm[b]}`));
       const playing = new Set(round.flat());
       const sitting = nm.filter((_, i) => !playing.has(i));
-      const waves = Math.ceil(round.length / st.tables);
-      const sec = el('section', { class: 'round' }, el('h4', { text: `Round ${r + 1}` }));
-      const ol = el('ol');
-      round.forEach(([a, b], k) => {
-        const wave = Math.floor(k / st.tables), table = (k % st.tables) + 1;
-        ol.append(el('li', { text: `${waves > 1 ? `Wave ${wave + 1}, ` : ''}table ${table}: ${nm[a]} – ${nm[b]}` }));
-      });
-      sec.append(ol);
-      if (sitting.length) sec.append(el('p', { class: 'note', text: `Sits out: ${sitting.join(', ')}` }));
-      out.append(sec);
+      if (sitting.length) x.append(el('p', { class: 'note', text: `Sits out: ${sitting.join(', ')}` }));
     });
-  } else {
+  } else if (kind === 'ko') {
+    out.append(el('p', { class: 'note', text: 'Players are seeded in the order of your list (strongest first); the number after a name is the seed. Top seeds get the byes.' }));
     let m = 1; while (m < st.n) m *= 2;
-    const order = bracketOrder(m);
-    const sec = el('section', { class: 'round' }, el('h4', { text: 'First round (list your players strongest first; the top seeds get the byes)' }));
-    const ol = el('ol');
-    for (let k = 0; k < m; k += 2) {
-      const a = order[k], b = order[k + 1];
-      const A = a <= st.n ? `${nm[a - 1]} (${a})` : null, B = b <= st.n ? `${nm[b - 1]} (${b})` : null;
-      ol.append(el('li', { text: A && B ? `${A} – ${B}` : `${A || B}: bye` }));
+    let slots = bracketOrder(m).map(k => (k <= st.n ? `${nm[k - 1]} (${k})` : null));
+    let match = 0, r = 0;
+    const roundName = left => (left === 2 ? 'Final' : left === 4 ? 'Semi-finals' : left === 8 ? 'Quarter-finals' : `Round ${r + 1}`);
+    while (slots.length > 1) {
+      const next = [], items = [];
+      for (let k = 0; k < slots.length; k += 2) {
+        const a = slots[k], b = slots[k + 1];
+        if (!a || !b) { next.push(a || b); continue; }
+        match++; items.push(`Match ${match}: ${a} – ${b}`); next.push(`winner of match ${match}`);
+      }
+      list(sec(roundName(slots.length)), items);
+      slots = next; r++;
     }
-    sec.append(ol);
-    sec.append(el('p', { class: 'note', text: 'Winners of neighbouring matches meet in the next round: 1st vs 2nd match, 3rd vs 4th, and so on.' }));
-    out.append(sec);
+  } else if (kind === 'sw') {
+    const order = nm.map((x, i) => `${x} (${i + 1})`);
+    const half = Math.floor(st.n / 2);
+    const x = sec('Round 1');
+    const items = [];
+    for (let k = 0; k < half; k++) items.push(`${tableLabel(k, half)}: ${order[k]} – ${order[k + half]}`);
+    list(x, items);
+    if (st.n % 2) x.append(el('p', { class: 'note', text: `Bye (counts as a win): ${order[st.n - 1]}` }));
+    out.append(el('p', { class: 'note', text: `List your players strongest first, or in random order if you don't know. Later rounds depend on the results, so they can't be printed in advance. After each round: sort players by points (equal points: the order of your list). Pair the top half of each score group against its bottom half, first with first; if two players have met before, swap with the next player. An odd player out moves down to the next score group. With an odd number of players, the lowest-ranked player who hasn't had a bye gets one. Play ${f ? f.rounds : Math.ceil(Math.log2(st.n))} rounds; most points wins, ties broken by the sum of your opponents' points.` }));
+  } else {
+    out.append(el('p', { class: 'note', text: kind === 'de'
+      ? 'This page doesn’t print double-elimination brackets: the losers’ bracket depends on who loses where. A bracket app or a printed template for your number of players works better.'
+      : 'This page doesn’t print group schedules yet. Run each group as a small round robin (choose "Round robin" with the group’s size), then a knockout for the top two of each group.' }));
   }
 }
 
@@ -249,7 +298,7 @@ function changed() {
 }
 for (const inp of Object.values(inputs)) inp.addEventListener('input', changed);
 $('#names').addEventListener('input', renderSchedule);
-$('#sched-kind').addEventListener('change', renderSchedule);
+$('#sched-kind').addEventListener('change', () => { schedTouched = true; renderSchedule(); });
 $('#print').addEventListener('click', () => window.print());
 readHash();
 render(state());

@@ -217,7 +217,7 @@ function pairSwiss(order, score, met) {
     const h = Math.floor(g.length / 2);
     g.forEach((p, k) => { if (k < h) pref.set(p, g[k + h]); });
   }
-  let budget = 20000; // backtracking steps; if a rematch-free pairing isn't found within it, rematches are allowed
+  let budget = 3000; // backtracking steps; if a rematch-free pairing isn't found within it, rematches are allowed
   function solve(left, allowRematch) {
     if (left.length === 0) return [];
     if (!allowRematch && --budget < 0) return null;
@@ -234,6 +234,14 @@ function pairSwiss(order, score, met) {
     return null;
   }
   return solve(order, false) || solve(order, true);
+}
+
+// First-round games of a seeded knockout with q players, as pairs of seed indices (0-based).
+export function firstRoundPairs(q) {
+  let m = 1; while (m < q) m *= 2;
+  const o = bracketOrder(m), out = [];
+  for (let k = 0; k < m; k += 2) if (o[k] <= q && o[k + 1] <= q) out.push([o[k] - 1, o[k + 1] - 1]);
+  return out;
 }
 
 // Groups of size g (snake seeding), round robin in each group, top `adv` of each group go to a seeded knockout.
@@ -258,8 +266,20 @@ export function groupsKnockout(n, game, rand, { groupSize = 4, adv = 2, seeded =
     }
     ranked.forEach((p, k) => { (qualifiers[k] ||= []).push(p); });
   }
-  // knockout seeding: group winners first, then runners-up (a simplification of crossing rules)
+  // knockout seeding: group winners first, then runners-up (and so on); runners-up are then swapped until no
+  // first-round knockout game pairs two players from the same group (when that is possible)
   const ko = qualifiers.flat();
+  const groupOf = new Map(); groups.forEach((g, k) => g.forEach(p => groupOf.set(p, k)));
+  const fixed = qualifiers[0].length;
+  const clashes = () => firstRoundPairs(ko.length).filter(([a, b]) => groupOf.get(ko[a]) === groupOf.get(ko[b])).length;
+  let c = clashes();
+  for (let pass = 0; c > 0 && pass < 4; pass++) {
+    for (let i = fixed; i < ko.length && c > 0; i++) for (let j = i + 1; j < ko.length && c > 0; j++) {
+      [ko[i], ko[j]] = [ko[j], ko[i]];
+      const c2 = clashes();
+      if (c2 < c) c = c2; else [ko[i], ko[j]] = [ko[j], ko[i]];
+    }
+  }
   const sub = knockout(ko.length, (i, j) => game(ko[i], ko[j]), rand, { seeded: true });
   sub.games.forEach((c, i) => { games[ko[i]] += c; });
   return { winner: ko[sub.winner], games, rounds: groupRounds + sub.rounds };
@@ -355,7 +375,7 @@ export function roundShape(name, n, opts = {}) {
     const g = opts.groupSize || 4, adv = opts.adv || 2, G = Math.max(1, Math.round(n / g));
     const sizes = new Array(G).fill(0); for (let k = 0; k < n; k++) sizes[k % G]++;
     const R = Math.max(...sizes.map(s => (s % 2 ? s : s - 1)));
-    const groupRounds = new Array(R).fill(sizes.reduce((t, s) => t + Math.floor(s / 2), 0));
+    const groupRounds = Array.from({ length: R }, (_, r) => sizes.reduce((t, s) => t + (r < (s % 2 ? s : s - 1) ? Math.floor(s / 2) : 0), 0));
     return [...groupRounds, ...koShape(sizes.reduce((t, s) => t + Math.min(adv, s), 0))];
   }
   if (name === 'doubleElim') {

@@ -7,6 +7,11 @@
 <meta name="description" content="Running a tournament? Enter your players, your tables and your time, and see how often a knockout, double elimination, Swiss, groups or round robin actually crowns your best player. Then print the schedule.">
 <link rel="canonical" href="https://machinewright.github.io/best-player-wins/">
 <link rel="icon" href="data:,">
+<meta property="og:title" content="Will your best player win?">
+<meta property="og:description" content="Compare tournament formats for your group and your time: how often each one crowns your best player.">
+<meta property="og:image" content="https://machinewright.github.io/best-player-wins/og.png">
+<meta property="og:url" content="https://machinewright.github.io/best-player-wins/">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="fonts/source-serif-4-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -25,16 +30,16 @@ Anthropic) · November 2026 · <a href="#behind">What's behind the numbers</a></
   <h3 id="your-group">Your group</h3>
   <div class="grid">
     <label>Players <input id="n" type="number" min="3" max="64" value="16" inputmode="numeric"></label>
-    <label>Do you know who's strong?
+    <label class="wide">Do you know who's strong?
       <select id="seeding">
         <option value="none">No, draw names at random</option>
         <option value="rough" selected>Roughly</option>
         <option value="exact">Exactly (ratings you trust)</option>
       </select>
     </label>
-    <label>Draws
+    <label class="wide">Draws
       <select id="draw">
-        <option value="0" selected>None (every game has a winner)</option>
+        <option value="0" selected>None: every game has a winner</option>
         <option value="0.1">Sometimes (1 in 10 between equals)</option>
         <option value="0.33">Often (1 in 3 between equals)</option>
       </select>
@@ -45,6 +50,8 @@ Anthropic) · November 2026 · <a href="#behind">What's behind the numbers</a></
     <output id="p-out" class="num">80%</output></span>
     <span id="p-feel" class="note"></span>
   </label>
+  <p class="note">Using chess-style (Elo) ratings? If your best player is rated 100 points above a middling one, that's
+  64%; 200 points, 76%; 300 points, 85%; 400 points, 91%.</p>
   <h3>Your time</h3>
   <div class="grid">
     <label>Tables, boards or courts <input id="tables" type="number" min="1" max="64" inputmode="numeric" placeholder="8"></label>
@@ -89,7 +96,9 @@ Add rounds and it improves, slowly:</p>
 </figure>
 
 <p>With draws, as in chess, more than one player can finish on top, and the tie-break rules start to matter.
-Choose "Draws: often" above to see the effect.</p>
+Choose "Draws: often" above to see the effect. One more oddity: seeding a Swiss by exact strength makes it slightly
+worse at crowning the best player (30% against 32% with a random order in the starting settings), because the top
+players meet each other sooner.</p>
 
 <h2>Make the schedule</h2>
 <section class="widget sched">
@@ -97,16 +106,20 @@ Choose "Draws: often" above to see the effect.</p>
     <label>Format
       <select id="sched-kind">
         <option value="rr">Round robin</option>
-        <option value="ko">Knockout, first round</option>
+        <option value="ko">Knockout</option>
+        <option value="sw">Swiss (first round)</option>
+        <option value="de">Double elimination</option>
+        <option value="gr">Groups, then knockout</option>
       </select>
     </label>
   </div>
-  <label class="names">Names, one per line (optional; for a knockout, strongest first)
+  <label class="names">Names, one per line, strongest first if you know (optional)
     <textarea id="names" rows="5" placeholder="Ada&#10;Bo&#10;Chen&#10;…"></textarea></label>
   <div class="controls"><button id="print" type="button">Print the schedule</button></div>
   <div id="schedule" class="schedule"></div>
 </section>
-<p class="note-text">The schedule uses the players and tables set above. Names stay in your browser.</p>
+<p class="note-text">The schedule uses the players and tables set above, and starts with the format the calculator
+highlights. Names stay in your browser.</p>
 
 <h2 id="behind">What's behind the numbers</h2>
 <p><strong>Players.</strong> Your group is modelled as players of evenly spread strength, from best to weakest, as
@@ -117,8 +130,9 @@ switched on, are most frequent between equal players. Nobody has good or bad day
 go to the top seeds). Double elimination has a losers' bracket and a grand final, replayed once if the player from
 the losers' bracket wins it. Swiss pairs players on the same score, top half against bottom half, never twice the same
 opponents if it can avoid it; first place is decided by the Buchholz tie-break (the sum of your opponents'
-scores). Groups have about four players; the top two of each go into a seeded knockout. Round robin ties are broken by
-the Sonneborn–Berger score. Any tie still left is settled by a playoff. "Roughly" known strength means you would
+scores). Groups have three to five players; the top two of each go into a seeded knockout. Round robin ties are broken by
+the Sonneborn–Berger score. Any tie still left is settled by a playoff, so
+every tournament has exactly one winner, and "the best player wins" means they take the trophy outright. "Roughly" known strength means you would
 rank your players with about as much error as there is spread between them.</p>
 <p><strong>Checking.</strong> Each figure comes from 4,000 simulated tournaments, so it is accurate to about ±1.5
 percentage points. The simulation was checked against exact calculations: knockouts by working through the
