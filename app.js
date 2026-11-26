@@ -270,7 +270,8 @@ function renderSchedule() {
   const title = { rr: 'Round robin', ko: 'Knockout', sw: 'Swiss', de: 'Double elimination', gr: 'Groups, then knockout' }[kind];
   out.append(el('h3', { class: 'sched-title', text: `${title} · ${st.n} players · ${st.tables} table${st.tables === 1 ? '' : 's'}${st.bestOf > 1 ? ` · best of ${st.bestOf}` : ''}` }));
   if (f && !f.fits) out.append(el('p', { class: 'warn', text: `This takes about ${hm(f.minutes)}, more than the ${hm(st.hours * 60)} you have.` }));
-  const waveNote = 'With more games than tables, a round is played in waves: wave 2 starts when wave 1 is done.';
+  const unitPl = st.bestOf > 1 ? 'matches' : 'games';
+  const waveNote = `With more ${unitPl} than tables, a round is played in waves: wave 2 starts when wave 1 is done.`;
   const sec = (h) => { const x = el('section', { class: 'round' }, el('h4', { text: h })); out.append(x); return x; };
   const list = (parent, items) => { const ol = el('ol'); for (const t of items) ol.append(el('li', { text: t })); parent.append(ol); };
   const tableLabel = (k, total) => { const waves = Math.ceil(total / st.tables); return `${waves > 1 ? `wave ${Math.floor(k / st.tables) + 1}, ` : ''}table ${(k % st.tables) + 1}`; };
@@ -323,7 +324,7 @@ function renderSchedule() {
     }
     for (const [h, items] of groups) {
       const x = sec(h); list(x, items);
-      if (h === 'Grand final') x.append(el('p', { class: 'note', text: 'If the player from the losers’ bracket wins, play one more game: now both have lost once.' }));
+      if (h === 'Grand final') x.append(el('p', { class: 'note', text: `If the player from the losers’ bracket wins, play one more ${st.bestOf > 1 ? 'match' : 'game'}: now both have lost once.` }));
     }
   } else if (kind === 'gr') {
     const G = Math.max(1, Math.round(st.n / 4)), letters = 'ABCDEFGHIJKLMNOP';
